@@ -44,7 +44,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.NinePatchDrawable;
 import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.ShapeDrawable;
@@ -788,8 +787,8 @@ public class Theme {
                 drawFullBottom = true;
                 drawFullTop = true;
             } else {
-                drawFullBottom = currentType == TYPE_MEDIA ? topY + bounds.bottom - smallRad * 2 < currentBackgroundHeight : topY + bounds.bottom - rad < currentBackgroundHeight;
-                drawFullTop = topY + rad * 2 >= 0;
+                drawFullBottom = true; //currentType == TYPE_MEDIA ? topY + bounds.bottom - smallRad * 2 < currentBackgroundHeight : topY + bounds.bottom - rad < currentBackgroundHeight;
+                drawFullTop = true; // topY + rad * 2 >= 0;
             }
             Path path;
             boolean invalidatePath;
@@ -1004,11 +1003,7 @@ public class Theme {
             }
             if (gradientShader == null) {
                 Drawable background = getBackgroundDrawable();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                    if (background.getAlpha() != alpha) {
-                        background.setAlpha(alpha);
-                    }
-                } else {
+                if (background.getAlpha() != alpha) {
                     background.setAlpha(alpha);
                 }
             }
@@ -1771,6 +1766,23 @@ public class Theme {
 
             return !isMyMessagesGradientColorsNear;
         }
+
+        public void resetAccentColorsForMyMessagesGiftThemeLight(SparseIntArray currentColors) {
+            currentColors.put(Theme.key_actionBarDefault, accentColor | 0xFF000000);
+            for (int a = Theme.myMessagesBubblesStartIndex; a < Theme.myMessagesBubblesEndIndex; a++) {
+                currentColors.delete(a);
+                currentColors.put(a, defaultColors[a]);
+            }
+            for (int a = Theme.myMessagesStartIndex; a < Theme.myMessagesEndIndex; a++) {
+                currentColors.delete(a);
+                currentColors.put(a, defaultColors[a]);
+            }
+            for (int a = Theme.myMessages2StartIndex; a < Theme.myMessages2EndIndex; a++) {
+                currentColors.delete(a);
+                currentColors.put(a, defaultColors[a]);
+            }
+        }
+
 
         private float[] tempHSV = new float[3];
         private int setHue(int color, int hueFromColor) {
@@ -2787,8 +2799,12 @@ public class Theme {
             if (settingsIndex < info.settings.size()) {
                 settings = info.settings.get(settingsIndex);
             }
+            return createNewAccent(info.id, settings, info, account, ignoreThemeInfoId);
+        }
+
+        public ThemeAccent createNewAccent(long themeId, TLRPC.ThemeSettings settings, TLRPC.TL_theme info, int account, boolean ignoreThemeInfoId) {
             if (ignoreThemeInfoId) {
-                ThemeAccent themeAccent = chatAccentsByThemeId.get(info.id);
+                ThemeAccent themeAccent = chatAccentsByThemeId.get(themeId);
                 if (themeAccent != null) {
                     return themeAccent;
                 }
@@ -2800,7 +2816,7 @@ public class Theme {
                 chatAccentsByThemeId.put(id, themeAccent);
                 return themeAccent;
             } else {
-                ThemeAccent themeAccent = accentsByThemeId.get(info.id);
+                ThemeAccent themeAccent = accentsByThemeId.get(themeId);
                 if (themeAccent != null) {
                     return themeAccent;
                 }
@@ -2812,7 +2828,7 @@ public class Theme {
                 themeAccentsMap.put(id, themeAccent);
                 themeAccents.add(0, themeAccent);
                 sortAccents(this);
-                accentsByThemeId.put(info.id, themeAccent);
+                accentsByThemeId.put(themeId, themeAccent);
                 return themeAccent;
             }
         }
@@ -3108,7 +3124,7 @@ public class Theme {
     public static Paint avatar_backgroundPaint;
 
     public static Drawable listSelector;
-    public static Drawable[] avatarDrawables = new Drawable[24];
+    public static Drawable[] avatarDrawables = new Drawable[25];
 
     public static Drawable moveUpDrawable;
 
@@ -3211,6 +3227,7 @@ public class Theme {
     public static TextPaint chat_msgTextCode3Paint;
     public static TextPaint chat_actionTextPaint;
     public static TextPaint chat_actionTextPaint2;
+    public static TextPaint chat_actionTextPaint3;
     public static TextPaint chat_unlockExtendedMediaTextPaint;
     public static TextPaint chat_msgBotButtonPaint;
     public static TextPaint chat_msgGameTextPaint;
@@ -3321,6 +3338,7 @@ public class Theme {
     public static Drawable chat_botInlineDrawable;
     public static Drawable chat_botWebViewDrawable;
     public static Drawable chat_botInviteDrawable;
+    public static Drawable chat_botLockDrawable;
     public static Drawable chat_commentDrawable;
     public static Drawable chat_commentStickerDrawable;
     public static Drawable chat_commentArrowDrawable;
@@ -3340,7 +3358,7 @@ public class Theme {
     public static Drawable chat_msgCallDownGreenDrawable;
 
     public static Drawable chat_attachEmptyDrawable;
-    public static RLottieDrawable[] chat_attachButtonDrawables = new RLottieDrawable[6];
+    public static RLottieDrawable[] chat_attachButtonDrawables = new RLottieDrawable[7];
     public static Drawable[] chat_locationDrawable = new Drawable[2];
     public static Drawable[] chat_contactDrawable = new Drawable[2];
     public static Drawable[][] chat_fileStatesDrawable = new Drawable[5][2];
@@ -3647,6 +3665,8 @@ public class Theme {
     public static final int key_chat_attachLocationText = colorsCount++;
     public static final int key_chat_attachPollBackground = colorsCount++;
     public static final int key_chat_attachPollText = colorsCount++;
+    public static final int key_chat_attachTodoBackground = colorsCount++;
+    public static final int key_chat_attachTodoText = colorsCount++;
 
     public static final int key_chat_status = colorsCount++;
     public static final int key_chat_inGreenCall = colorsCount++;
@@ -3735,6 +3755,7 @@ public class Theme {
     public static final int key_chat_outReactionButtonBackground = colorsCount++;
     public static final int myMessagesEndIndex = colorsCount;
 
+    public static final int myMessages2StartIndex = colorsCount;
     public static final int key_chat_outTextSelectionHighlight = colorsCount++;
     public static final int key_chat_outTextSelectionCursor = colorsCount++;
     public static final int key_chat_outBubbleLocationPlaceholder = colorsCount++;
@@ -3742,6 +3763,8 @@ public class Theme {
     public static final int key_chat_outPsaNameText = colorsCount++;
     public static final int key_chat_outBubbleGradientAnimated = colorsCount++;
     public static final int key_chat_outBubbleGradientSelectedOverlay = colorsCount++;
+    public static final int myMessages2EndIndex = colorsCount;
+
     public static final int key_chat_inBubbleSelected = colorsCount++;
     public static final int key_chat_messageTextIn = colorsCount++;
     public static final int key_chat_messageTextOut = colorsCount++;
@@ -3906,6 +3929,7 @@ public class Theme {
     public static final int key_chat_recordedVoiceProgressInner = colorsCount++;
     public static final int key_chat_recordedVoiceDot = colorsCount++;
     public static final int key_chat_recordedVoiceBackground = colorsCount++;
+    public static final int key_chat_recordedVoiceDarkerBackground = colorsCount++;
     public static final int key_chat_recordVoiceCancel = colorsCount++;
     public static final int key_chat_recordTime = colorsCount++;
     public static final int key_chat_messagePanelCancelInlineBot = colorsCount++;
@@ -4161,6 +4185,8 @@ public class Theme {
     public static final int key_stories_circle_dialog2 = colorsCount++;
     public static final int key_stories_circle_closeFriends1 = colorsCount++;
     public static final int key_stories_circle_closeFriends2 = colorsCount++;
+    public static final int key_stories_circle_live1 = colorsCount++;
+    public static final int key_stories_circle_live2 = colorsCount++;
 
     public static final int key_chat_inCodeBackground = colorsCount++;
     public static final int key_chat_outCodeBackground = colorsCount++;
@@ -4181,9 +4207,13 @@ public class Theme {
     public static final int key_share_linkBackground = colorsCount++;
     public static final int key_share_icon = colorsCount++;
 
+    public static final int key_glass_defaultIcon = colorsCount++;
+    public static final int key_glass_defaultText = colorsCount++;
+
     public static final String key_drawable_botInline = "drawableBotInline";
     public static final String key_drawable_botLink = "drawableBotLink";
     public static final String key_drawable_botWebView = "drawableBotWebView";
+    public static final String key_drawable_botLock = "drawableBotLock";
     public static final String key_drawable_botInvite = "drawable_botInvite";
     public static final String key_drawable_commentSticker = "drawableCommentSticker";
     public static final String key_drawable_goIcon = "drawableGoIcon";
@@ -4242,6 +4272,7 @@ public class Theme {
     public static final String key_paint_chatMessageBackgroundSelected = "paintChatMessageBackgroundSelected";
     public static final String key_paint_chatActionText = "paintChatActionText";
     public static final String key_paint_chatActionText2 = "paintChatActionText2";
+    public static final String key_paint_chatActionText3 = "paintChatActionText3";
     public static final String key_paint_chatBotButton = "paintChatBotButton";
     public static final String key_paint_chatComposeBackground = "paintChatComposeBackground";
     public static final String key_paint_divider = "paintDivider";
@@ -4298,6 +4329,7 @@ public class Theme {
         fallbackKeys.put(key_groupcreate_spanDelete, key_chats_actionIcon);
         fallbackKeys.put(key_sharedMedia_photoPlaceholder, key_windowBackgroundGray);
         fallbackKeys.put(key_chat_attachPollBackground, key_chat_attachAudioBackground);
+        fallbackKeys.put(key_chat_attachTodoBackground, key_chat_attachAudioBackground);
         fallbackKeys.put(key_chats_onlineCircle, key_windowBackgroundWhiteBlueText);
         fallbackKeys.put(key_windowBackgroundWhiteBlueButton, key_windowBackgroundWhiteValueText);
         fallbackKeys.put(key_windowBackgroundWhiteBlueIcon, key_windowBackgroundWhiteValueText);
@@ -4401,6 +4433,7 @@ public class Theme {
         fallbackKeys.put(key_chat_attachContactText, key_chat_attachContactBackground);
         fallbackKeys.put(key_chat_attachLocationText, key_chat_attachLocationBackground);
         fallbackKeys.put(key_chat_attachPollText, key_chat_attachPollBackground);
+        fallbackKeys.put(key_chat_attachTodoText, key_chat_attachTodoBackground);
 
         fallbackKeys.put(key_chat_inPsaNameText, key_avatar_nameInMessageGreen);
         fallbackKeys.put(key_chat_outPsaNameText, key_avatar_nameInMessageGreen);
@@ -4450,6 +4483,8 @@ public class Theme {
         fallbackKeys.put(key_share_icon, key_windowBackgroundWhiteBlackText);
         fallbackKeys.put(key_share_linkBackground, key_windowBackgroundGray);
         fallbackKeys.put(key_share_linkText, key_windowBackgroundWhiteBlackText);
+        fallbackKeys.put(key_glass_defaultIcon, Theme.key_windowBackgroundWhiteGrayText6);
+        fallbackKeys.put(key_glass_defaultText, Theme.key_windowBackgroundWhiteGrayText6);
 
         for (int i = 0; i < keys_avatar_background.length; i++) {
             themeAccentExclusionKeys.add(keys_avatar_background[i]);
@@ -5096,20 +5131,6 @@ public class Theme {
         StateListDrawable stateListDrawable = new StateListDrawable() {
             @Override
             public boolean selectDrawable(int index) {
-                if (Build.VERSION.SDK_INT < 21) {
-                    Drawable drawable = Theme.getStateDrawable(this, index);
-                    ColorFilter colorFilter = null;
-                    if (drawable instanceof BitmapDrawable) {
-                        colorFilter = ((BitmapDrawable) drawable).getPaint().getColorFilter();
-                    } else if (drawable instanceof NinePatchDrawable) {
-                        colorFilter = ((NinePatchDrawable) drawable).getPaint().getColorFilter();
-                    }
-                    boolean result = super.selectDrawable(index);
-                    if (colorFilter != null) {
-                        drawable.setColorFilter(colorFilter);
-                    }
-                    return result;
-                }
                 return super.selectDrawable(index);
             }
         };
@@ -5133,20 +5154,6 @@ public class Theme {
         StateListDrawable stateListDrawable = new StateListDrawable() {
             @Override
             public boolean selectDrawable(int index) {
-                if (Build.VERSION.SDK_INT < 21) {
-                    Drawable drawable = Theme.getStateDrawable(this, index);
-                    ColorFilter colorFilter = null;
-                    if (drawable instanceof BitmapDrawable) {
-                        colorFilter = ((BitmapDrawable) drawable).getPaint().getColorFilter();
-                    } else if (drawable instanceof NinePatchDrawable) {
-                        colorFilter = ((NinePatchDrawable) drawable).getPaint().getColorFilter();
-                    }
-                    boolean result = super.selectDrawable(index);
-                    if (colorFilter != null) {
-                        drawable.setColorFilter(colorFilter);
-                    }
-                    return result;
-                }
                 return super.selectDrawable(index);
             }
         };
@@ -5225,20 +5232,6 @@ public class Theme {
         StateListDrawable stateListDrawable = new StateListDrawable() {
             @Override
             public boolean selectDrawable(int index) {
-                if (Build.VERSION.SDK_INT < 21) {
-                    Drawable drawable = Theme.getStateDrawable(this, index);
-                    ColorFilter colorFilter = null;
-                    if (drawable instanceof BitmapDrawable) {
-                        colorFilter = ((BitmapDrawable) drawable).getPaint().getColorFilter();
-                    } else if (drawable instanceof NinePatchDrawable) {
-                        colorFilter = ((NinePatchDrawable) drawable).getPaint().getColorFilter();
-                    }
-                    boolean result = super.selectDrawable(index);
-                    if (colorFilter != null) {
-                        drawable.setColorFilter(colorFilter);
-                    }
-                    return result;
-                }
                 return super.selectDrawable(index);
             }
         };
@@ -5383,25 +5376,32 @@ public class Theme {
         ShapeDrawable defaultDrawable = new ShapeDrawable(ovalShape);
         defaultDrawable.getPaint().setColor(defaultColor);
         ShapeDrawable pressedDrawable = new ShapeDrawable(ovalShape);
-        if (Build.VERSION.SDK_INT >= 21) {
-            pressedDrawable.getPaint().setColor(0xffffffff);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{pressedColor}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, defaultDrawable, pressedDrawable);
-        } else {
-            pressedDrawable.getPaint().setColor(pressedColor);
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, pressedDrawable);
-            stateListDrawable.addState(new int[]{android.R.attr.state_focused}, pressedDrawable);
-            stateListDrawable.addState(StateSet.WILD_CARD, defaultDrawable);
-            return stateListDrawable;
-        }
+        pressedDrawable.getPaint().setColor(0xffffffff);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{pressedColor}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, defaultDrawable, pressedDrawable);
     }
 
     public static ShapeDrawable createRoundRectDrawable(int rad, int defaultColor) {
         ShapeDrawable defaultDrawable = new ShapeDrawable(new RoundRectShape(new float[]{rad, rad, rad, rad, rad, rad, rad, rad}, null, null));
+        defaultDrawable.getPaint().setColor(defaultColor);
+        return defaultDrawable;
+    }
+
+    public static GradientDrawable createRoundRectGradientDrawable(int rad, int topColor, int bottomColor) {
+        GradientDrawable gd = new GradientDrawable(
+                GradientDrawable.Orientation.RIGHT_LEFT,
+                new int[]{ topColor, bottomColor }
+        );
+        gd.setShape(GradientDrawable.RECTANGLE);
+        gd.setCornerRadius(rad);
+        return gd;
+    }
+
+    public static ShapeDrawable createRoundRectDrawable(int topLeftRed, int topRightRad, int bottomRightRad, int bottomLeftRad, int defaultColor) {
+        ShapeDrawable defaultDrawable = new ShapeDrawable(new RoundRectShape(new float[]{topLeftRed, topLeftRed, topRightRad, topRightRad, bottomRightRad, bottomRightRad, bottomLeftRad, bottomLeftRad}, null, null));
         defaultDrawable.getPaint().setColor(defaultColor);
         return defaultDrawable;
     }
@@ -5457,28 +5457,44 @@ public class Theme {
         };
     }
 
+    public static Drawable createSimpleSelectorRoundRectDrawableWithInset(int rad, int defaultColor, int pressedColor, int inset) {
+        return createSimpleSelectorRoundRectDrawable(new float[]{
+            rad, rad, rad, rad, rad, rad, rad, rad
+        }, defaultColor, pressedColor, pressedColor, inset);
+    }
+
     public static Drawable createSimpleSelectorRoundRectDrawable(int rad, int defaultColor, int pressedColor) {
         return createSimpleSelectorRoundRectDrawable(rad, defaultColor, pressedColor, pressedColor);
     }
 
     public static Drawable createSimpleSelectorRoundRectDrawable(int rad, int defaultColor, int pressedColor, int maskColor) {
-        ShapeDrawable defaultDrawable = new ShapeDrawable(new RoundRectShape(new float[]{rad, rad, rad, rad, rad, rad, rad, rad}, null, null));
+        return createSimpleSelectorRoundRectDrawable(rad, rad, rad, rad, defaultColor, pressedColor, maskColor);
+    }
+
+    public static Drawable createSimpleSelectorRoundRectDrawable(int leftTop, int rightTop, int rightBottom, int leftBottom, int defaultColor, int pressedColor, int maskColor) {
+        return createSimpleSelectorRoundRectDrawable(new float[]{
+                leftTop, leftTop,
+                rightTop, rightTop,
+                rightBottom, rightBottom,
+                leftBottom, leftBottom
+        }, defaultColor, pressedColor, maskColor);
+    }
+
+    public static Drawable createSimpleSelectorRoundRectDrawable(float[] rad, int defaultColor, int pressedColor, int maskColor) {
+        return createSimpleSelectorRoundRectDrawable(rad, defaultColor, pressedColor, maskColor, 0);
+    }
+    public static Drawable createSimpleSelectorRoundRectDrawable(float[] rad, int defaultColor, int pressedColor, int maskColor, int inset) {
+        ShapeDrawable defaultDrawable = new ShapeDrawable(new RoundRectShape(rad, null, null));
+        defaultDrawable.setPadding(inset, inset, inset, inset);
         defaultDrawable.getPaint().setColor(defaultColor);
-        ShapeDrawable pressedDrawable = new ShapeDrawable(new RoundRectShape(new float[]{rad, rad, rad, rad, rad, rad, rad, rad}, null, null));
+        ShapeDrawable pressedDrawable = new ShapeDrawable(new RoundRectShape(rad, null, null));
         pressedDrawable.getPaint().setColor(maskColor);
-        if (Build.VERSION.SDK_INT >= 21) {
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{pressedColor}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, defaultDrawable, pressedDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, pressedDrawable);
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, pressedDrawable);
-            stateListDrawable.addState(StateSet.WILD_CARD, defaultDrawable);
-            return stateListDrawable;
-        }
+        pressedDrawable.setPadding(inset, inset, inset, inset);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{pressedColor}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, defaultDrawable, pressedDrawable);
     }
 
     public static Drawable createSelectorDrawableFromDrawables(Drawable normal, Drawable pressed) {
@@ -5494,44 +5510,33 @@ public class Theme {
     }
 
     public static Drawable getRoundRectSelectorDrawable(int corners, int color) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            Drawable maskDrawable = createRoundRectDrawable(corners, 0xffffffff);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{(color & 0x00ffffff) | 0x19000000}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, createRoundRectDrawable(corners, (color & 0x00ffffff) | 0x19000000));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, createRoundRectDrawable(corners, (color & 0x00ffffff) | 0x19000000));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(0x00000000));
-            return stateListDrawable;
-        }
+        Drawable maskDrawable = createRoundRectDrawable(corners, 0xffffffff);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{(color & 0x00ffffff) | 0x19000000}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
 
     public static Drawable createSelectorWithBackgroundDrawable(int backgroundColor, int color) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            Drawable maskDrawable = new ColorDrawable(backgroundColor);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{color}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, new ColorDrawable(backgroundColor), maskDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(backgroundColor));
-            return stateListDrawable;
-        }
+        Drawable maskDrawable = new ColorDrawable(backgroundColor);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{color}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, new ColorDrawable(backgroundColor), maskDrawable);
     }
 
     public static Drawable getSelectorDrawable(boolean whiteBackground) {
         return getSelectorDrawable(getColor(key_listSelector), whiteBackground);
     }
     public static Drawable getSelectorDrawable(boolean whiteBackground, ResourcesProvider resourcesProvider) {
-        return getSelectorDrawable(getColor(key_listSelector, resourcesProvider), whiteBackground);
+        final int color = getColor(key_listSelector, resourcesProvider);
+        if (whiteBackground) {
+            return getSelectorDrawable(color, key_windowBackgroundWhite, resourcesProvider);
+        } else {
+            return createSelectorDrawable(color, 2);
+        }
     }
 
     public static Drawable getSelectorDrawable(int color, boolean whiteBackground) {
@@ -5543,21 +5548,16 @@ public class Theme {
     }
 
     public static Drawable getSelectorDrawable(int color, int backgroundColor) {
+        return getSelectorDrawable(color, backgroundColor, null);
+    }
+    public static Drawable getSelectorDrawable(int color, int backgroundColor, Theme.ResourcesProvider resourcesProvider) {
         if (backgroundColor >= 0) {
-            if (Build.VERSION.SDK_INT >= 21) {
-                Drawable maskDrawable = new ColorDrawable(0xffffffff);
-                ColorStateList colorStateList = new ColorStateList(
-                        new int[][]{StateSet.WILD_CARD},
-                        new int[]{color}
-                );
-                return new BaseCell.RippleDrawableSafe(colorStateList, new ColorDrawable(getColor(backgroundColor)), maskDrawable);
-            } else {
-                StateListDrawable stateListDrawable = new StateListDrawable();
-                stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-                stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-                stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(getColor(backgroundColor)));
-                return stateListDrawable;
-            }
+            Drawable maskDrawable = new ColorDrawable(0xffffffff);
+            ColorStateList colorStateList = new ColorStateList(
+                    new int[][]{StateSet.WILD_CARD},
+                    new int[]{color}
+            );
+            return new BaseCell.RippleDrawableSafe(colorStateList, new ColorDrawable(getColor(backgroundColor, resourcesProvider)), maskDrawable);
         } else {
             return createSelectorDrawable(color, 2);
         }
@@ -5579,106 +5579,55 @@ public class Theme {
     public static final int RIPPLE_MASK_ROUNDRECT_6DP = 7;
 
     public static Drawable createSelectorDrawable(int color, int maskType, int radius) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            Drawable maskDrawable = null;
-            if ((maskType == RIPPLE_MASK_CIRCLE_20DP || maskType == 5) && Build.VERSION.SDK_INT >= 23) {
-                maskDrawable = null;
-            } else if (
-                maskType == RIPPLE_MASK_CIRCLE_20DP ||
-                maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE ||
-                maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER ||
-                maskType == RIPPLE_MASK_CIRCLE_AUTO ||
-                maskType == 6 ||
-                maskType == RIPPLE_MASK_ROUNDRECT_6DP
-            ) {
-                maskPaint.setColor(0xffffffff);
-                maskDrawable = new Drawable() {
-
-                    RectF rect;
-
-                    @Override
-                    public void draw(Canvas canvas) {
-                        android.graphics.Rect bounds = getBounds();
-                        if (maskType == RIPPLE_MASK_ROUNDRECT_6DP) {
-                            if (rect == null) {
-                                rect = new RectF();
-                            }
-                            rect.set(bounds);
-                            float rad = radius <= 0 ? dp(6) : radius;
-                            canvas.drawRoundRect(rect, rad, rad, maskPaint);
-                        } else {
-                            int rad;
-                            if (maskType == RIPPLE_MASK_CIRCLE_20DP || maskType == 6) {
-                                rad = radius <= 0 ? dp(20) : radius;
-                            } else if (maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE) {
-                                rad = (Math.max(bounds.width(), bounds.height()) / 2);
-                            } else {
-                                // RIPPLE_MASK_CIRCLE_AUTO = 5
-                                // RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER = 4
-                                rad = (int) Math.ceil(Math.sqrt((bounds.left - bounds.centerX()) * (bounds.left - bounds.centerX()) + (bounds.top - bounds.centerY()) * (bounds.top - bounds.centerY())));
-                            }
-                            canvas.drawCircle(bounds.centerX(), bounds.centerY(), rad, maskPaint);
-                        }
-                    }
-
-                    @Override
-                    public void setAlpha(int alpha) {
-
-                    }
-
-                    @Override
-                    public void setColorFilter(ColorFilter colorFilter) {
-
-                    }
-
-                    @Override
-                    public int getOpacity() {
-                        return PixelFormat.UNKNOWN;
-                    }
-                };
-            } else if (maskType == RIPPLE_MASK_ALL) {
-                maskDrawable = new ColorDrawable(0xffffffff);
-            }
-            ColorStateList colorStateList = new ColorStateList(
-                new int[][]{ StateSet.WILD_CARD },
-                new int[]{ color }
-            );
-            RippleDrawable rippleDrawable = new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
-            if (Build.VERSION.SDK_INT >= 23) {
-                if (maskType == RIPPLE_MASK_CIRCLE_20DP) {
-                    rippleDrawable.setRadius(radius <= 0 ? dp(20) : radius);
-                } else if (maskType == RIPPLE_MASK_CIRCLE_AUTO) {
-                    rippleDrawable.setRadius(RippleDrawable.RADIUS_AUTO);
-                }
-            }
-            return rippleDrawable;
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(0x00000000));
-            return stateListDrawable;
-        }
-    }
-
-    public static Drawable createCircleSelectorDrawable(int color, int leftInset, int rightInset) {
-        if (Build.VERSION.SDK_INT >= 21) {
+        Drawable maskDrawable = null;
+        if ((maskType == RIPPLE_MASK_CIRCLE_20DP || maskType == 5) && Build.VERSION.SDK_INT >= 23) {
+            maskDrawable = null;
+        } else if (
+            maskType == RIPPLE_MASK_CIRCLE_20DP ||
+            maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE ||
+            maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER ||
+            maskType == RIPPLE_MASK_CIRCLE_AUTO ||
+            maskType == 6 ||
+            maskType == RIPPLE_MASK_ROUNDRECT_6DP
+        ) {
             maskPaint.setColor(0xffffffff);
-            Drawable maskDrawable = new Drawable() {
+            maskDrawable = new Drawable() {
+
+                RectF rect;
 
                 @Override
                 public void draw(Canvas canvas) {
-                    android.graphics.Rect bounds = getBounds();
-                    final int rad = (Math.max(bounds.width(), bounds.height()) / 2) + leftInset + rightInset;
-                    canvas.drawCircle(bounds.centerX() - leftInset + rightInset, bounds.centerY(), rad, maskPaint);
+                    Rect bounds = getBounds();
+                    if (maskType == RIPPLE_MASK_ROUNDRECT_6DP) {
+                        if (rect == null) {
+                            rect = new RectF();
+                        }
+                        rect.set(bounds);
+                        float rad = radius <= 0 ? dp(6) : radius;
+                        canvas.drawRoundRect(rect, rad, rad, maskPaint);
+                    } else {
+                        int rad;
+                        if (maskType == RIPPLE_MASK_CIRCLE_20DP || maskType == 6) {
+                            rad = radius <= 0 ? dp(20) : radius;
+                        } else if (maskType == RIPPLE_MASK_CIRCLE_TO_BOUND_EDGE) {
+                            rad = (Math.max(bounds.width(), bounds.height()) / 2);
+                        } else {
+                            // RIPPLE_MASK_CIRCLE_AUTO = 5
+                            // RIPPLE_MASK_CIRCLE_TO_BOUND_CORNER = 4
+                            rad = (int) Math.ceil(Math.sqrt((bounds.left - bounds.centerX()) * (bounds.left - bounds.centerX()) + (bounds.top - bounds.centerY()) * (bounds.top - bounds.centerY())));
+                        }
+                        canvas.drawCircle(bounds.centerX(), bounds.centerY(), rad, maskPaint);
+                    }
                 }
 
                 @Override
                 public void setAlpha(int alpha) {
+
                 }
 
                 @Override
                 public void setColorFilter(ColorFilter colorFilter) {
+
                 }
 
                 @Override
@@ -5686,18 +5635,53 @@ public class Theme {
                     return PixelFormat.UNKNOWN;
                 }
             };
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{color}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(0x00000000));
-            return stateListDrawable;
+        } else if (maskType == RIPPLE_MASK_ALL) {
+            maskDrawable = new ColorDrawable(0xffffffff);
         }
+        ColorStateList colorStateList = new ColorStateList(
+            new int[][]{ StateSet.WILD_CARD },
+            new int[]{ color }
+        );
+        RippleDrawable rippleDrawable = new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
+        if (Build.VERSION.SDK_INT >= 23) {
+            if (maskType == RIPPLE_MASK_CIRCLE_20DP) {
+                rippleDrawable.setRadius(radius <= 0 ? dp(20) : radius);
+            } else if (maskType == RIPPLE_MASK_CIRCLE_AUTO) {
+                rippleDrawable.setRadius(RippleDrawable.RADIUS_AUTO);
+            }
+        }
+        return rippleDrawable;
+    }
+
+    public static Drawable createCircleSelectorDrawable(int color, int leftInset, int rightInset) {
+        maskPaint.setColor(0xffffffff);
+        Drawable maskDrawable = new Drawable() {
+
+            @Override
+            public void draw(Canvas canvas) {
+                Rect bounds = getBounds();
+                final int rad = (Math.max(bounds.width(), bounds.height()) / 2) + leftInset + rightInset;
+                canvas.drawCircle(bounds.centerX() - leftInset + rightInset, bounds.centerY(), rad, maskPaint);
+            }
+
+            @Override
+            public void setAlpha(int alpha) {
+            }
+
+            @Override
+            public void setColorFilter(ColorFilter colorFilter) {
+            }
+
+            @Override
+            public int getOpacity() {
+                return PixelFormat.UNKNOWN;
+            }
+        };
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{color}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
 
     /**
@@ -5847,39 +5831,22 @@ public class Theme {
             );
         }
         private static Drawable createRect(Drawable background, int rippleColor, float ...radii) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                Drawable maskDrawable = null;
-                if (hasNonzeroRadii(radii)) {
-                    maskDrawable = new ShapeDrawable(new RoundRectShape(calcRadii(radii), null, null));
-                    ((ShapeDrawable) maskDrawable).getPaint().setColor(0xffffffff);
-                } else {
-                    maskDrawable = new ShapeDrawable(new RectShape());
-                    ((ShapeDrawable) maskDrawable).getPaint().setColor(0xffffffff);
-                }
-                return new BaseCell.RippleDrawableSafe(
-                    new ColorStateList(
-                        new int[][]{ StateSet.WILD_CARD },
-                        new int[]{ rippleColor }
-                    ),
-                    background,
-                    maskDrawable
-                );
+            Drawable maskDrawable = null;
+            if (hasNonzeroRadii(radii)) {
+                maskDrawable = new ShapeDrawable(new RoundRectShape(calcRadii(radii), null, null));
+                ((ShapeDrawable) maskDrawable).getPaint().setColor(0xffffffff);
             } else {
-                StateListDrawable stateListDrawable = new StateListDrawable();
-                Drawable ripple;
-                if (hasNonzeroRadii(radii)) {
-                    ripple = new ShapeDrawable(new RoundRectShape(calcRadii(radii), null, null));
-                    ((ShapeDrawable) ripple).getPaint().setColor(rippleColor);
-                } else {
-                    ripple = new ShapeDrawable(new RectShape());
-                    ((ShapeDrawable) ripple).getPaint().setColor(rippleColor);
-                }
-                Drawable pressed = background == null ? ripple : new LayerDrawable(new Drawable[] { background, ripple });
-                stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, pressed);
-                stateListDrawable.addState(new int[]{android.R.attr.state_selected}, pressed);
-                stateListDrawable.addState(StateSet.WILD_CARD, background);
-                return stateListDrawable;
+                maskDrawable = new ShapeDrawable(new RectShape());
+                ((ShapeDrawable) maskDrawable).getPaint().setColor(0xffffffff);
             }
+            return new BaseCell.RippleDrawableSafe(
+                new ColorStateList(
+                    new int[][]{ StateSet.WILD_CARD },
+                    new int[]{ rippleColor }
+                ),
+                background,
+                maskDrawable
+            );
         }
 
         private static Drawable createCircle(int rippleColor) {
@@ -5896,24 +5863,14 @@ public class Theme {
             );
         }
         private static Drawable createCircle(Drawable background, int rippleColor, float radius) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                return new BaseCell.RippleDrawableSafe(
-                    new ColorStateList(
-                        new int[][]{ StateSet.WILD_CARD },
-                        new int[]{ rippleColor }
-                    ),
-                    background,
-                    new CircleDrawable(radius)
-                );
-            } else {
-                StateListDrawable stateListDrawable = new StateListDrawable();
-                Drawable ripple = new CircleDrawable(radius, rippleColor);
-                Drawable pressed = background == null ? ripple : new LayerDrawable(new Drawable[] { background, ripple });
-                stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, pressed);
-                stateListDrawable.addState(new int[]{android.R.attr.state_selected}, pressed);
-                stateListDrawable.addState(StateSet.WILD_CARD, background);
-                return stateListDrawable;
-            }
+            return new BaseCell.RippleDrawableSafe(
+                new ColorStateList(
+                        new int[][]{StateSet.WILD_CARD},
+                        new int[]{rippleColor}
+                ),
+                background,
+                new CircleDrawable(radius)
+            );
         }
 
         private static class CircleDrawable extends Drawable {
@@ -6067,9 +6024,6 @@ public class Theme {
     }
 
     public static void setMaskDrawableRad(Drawable rippleDrawable, int top, int bottom) {
-        if (Build.VERSION.SDK_INT < 21) {
-            return;
-        }
         if (rippleDrawable instanceof RippleDrawable) {
             RippleDrawable drawable = (RippleDrawable) rippleDrawable;
             int count = drawable.getNumberOfLayers();
@@ -6084,9 +6038,6 @@ public class Theme {
     }
 
     public static void setMaskDrawableRad(Drawable rippleDrawable, float topLeftRad, float topRightRad, float bottomRightRad, float bottomLeftRad) {
-        if (Build.VERSION.SDK_INT < 21) {
-            return;
-        }
         if (rippleDrawable instanceof RippleDrawable) {
             RippleDrawable drawable = (RippleDrawable) rippleDrawable;
             int count = drawable.getNumberOfLayers();
@@ -6101,59 +6052,33 @@ public class Theme {
     }
 
     public static Drawable createRadSelectorDrawable(int color, int topRad, int bottomRad) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            maskPaint.setColor(0xffffffff);
-            Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{color}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(0x00000000));
-            return stateListDrawable;
-        }
+        maskPaint.setColor(0xffffffff);
+        Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{color}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
 
     public static Drawable createRadSelectorDrawable(int color, int rippleColor, int topRad, int bottomRad) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            maskPaint.setColor(0xffffffff);
-            Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{rippleColor}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, createRoundRectDrawable(dp(topRad), dp(bottomRad), color), maskDrawable);
-        } else {
-            Drawable backgroundDrawable = createRoundRectDrawable(dp(topRad), dp(bottomRad), color);
-            Drawable pressedDrawable = new LayerDrawable(new Drawable[]{backgroundDrawable, createRoundRectDrawable(dp(topRad), dp(bottomRad), rippleColor)});
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, pressedDrawable);
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, pressedDrawable);
-            stateListDrawable.addState(StateSet.WILD_CARD, backgroundDrawable);
-            return stateListDrawable;
-        }
+        maskPaint.setColor(0xffffffff);
+        Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{rippleColor}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, createRoundRectDrawable(dp(topRad), dp(bottomRad), color), maskDrawable);
     }
 
     public static Drawable createRadSelectorDrawable(int color, int topLeftRad, int topRightRad, int bottomRightRad, int bottomLeftRad) {
-        if (Build.VERSION.SDK_INT >= 21) {
-            maskPaint.setColor(0xffffffff);
-            Drawable maskDrawable = new RippleRadMaskDrawable(topLeftRad, topRightRad, bottomRightRad, bottomLeftRad);
-            ColorStateList colorStateList = new ColorStateList(
-                    new int[][]{StateSet.WILD_CARD},
-                    new int[]{color}
-            );
-            return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
-        } else {
-            StateListDrawable stateListDrawable = new StateListDrawable();
-            stateListDrawable.addState(new int[]{android.R.attr.state_pressed}, new ColorDrawable(color));
-            stateListDrawable.addState(new int[]{android.R.attr.state_selected}, new ColorDrawable(color));
-            stateListDrawable.addState(StateSet.WILD_CARD, new ColorDrawable(0x00000000));
-            return stateListDrawable;
-        }
+        maskPaint.setColor(0xffffffff);
+        Drawable maskDrawable = new RippleRadMaskDrawable(topLeftRad, topRightRad, bottomRightRad, bottomLeftRad);
+        ColorStateList colorStateList = new ColorStateList(
+                new int[][]{StateSet.WILD_CARD},
+                new int[]{color}
+        );
+        return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
 
     public static void applyPreviousTheme() {
@@ -7060,6 +6985,7 @@ public class Theme {
             if (ApplicationLoader.mainInterfacePaused || !ApplicationLoader.isScreenOn) {
                 return;
             }
+
             if (lux > MAXIMUM_LUX_BREAKPOINT) {
                 lastBrightnessValue = 1.0f;
             } else {
@@ -8278,6 +8204,7 @@ public class Theme {
             avatarDrawables[21] = resources.getDrawable(R.drawable.filled_folder_existing);
             avatarDrawables[22] = resources.getDrawable(R.drawable.filled_giveaway_premium);
             avatarDrawables[23] = resources.getDrawable(R.drawable.filled_giveaway_stars);
+            avatarDrawables[24] = resources.getDrawable(R.drawable.filled_suggest_chat_avatar);
 
             if (dialogs_archiveAvatarDrawable != null) {
                 dialogs_archiveAvatarDrawable.setCallback(null);
@@ -8686,6 +8613,7 @@ public class Theme {
             chat_statusRecordPaint.setStrokeCap(Paint.Cap.ROUND);
             chat_actionTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             chat_actionTextPaint2 = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+            chat_actionTextPaint3 = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             chat_actionTextPaint.setTypeface(AndroidUtilities.bold());
             chat_unlockExtendedMediaTextPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             chat_unlockExtendedMediaTextPaint.setTypeface(AndroidUtilities.bold());
@@ -8710,6 +8638,7 @@ public class Theme {
             addChatPaint(key_paint_chatActionBackgroundSelected, chat_actionBackgroundSelectedPaint, key_chat_serviceBackgroundSelected);
             addChatPaint(key_paint_chatActionText, chat_actionTextPaint, key_chat_serviceText);
             addChatPaint(key_paint_chatActionText2, chat_actionTextPaint2, key_chat_serviceText);
+            addChatPaint(key_paint_chatActionText3, chat_actionTextPaint3, key_chat_serviceText);
             addChatPaint(key_paint_chatBotButton, chat_botButtonPaint, key_chat_botButtonText);
             addChatPaint(key_paint_chatComposeBackground, chat_composeBackgroundPaint, key_chat_messagePanelBackground);
             addChatPaint(key_paint_chatTimeBackground, chat_timeBackgroundPaint, key_chat_mediaTimeBackground);
@@ -8815,6 +8744,7 @@ public class Theme {
             chat_botCardDrawable = resources.getDrawable(R.drawable.bot_card);
             chat_botWebViewDrawable = resources.getDrawable(R.drawable.bot_webview);
             chat_botInviteDrawable = resources.getDrawable(R.drawable.bot_invite);
+            chat_botLockDrawable = resources.getDrawable(R.drawable.permission_locked);
 
             chat_commentDrawable = resources.getDrawable(R.drawable.msg_msgbubble);
             chat_commentStickerDrawable = resources.getDrawable(R.drawable.msg_msgbubble2);
@@ -8830,6 +8760,7 @@ public class Theme {
             chat_attachButtonDrawables[3] = new RLottieDrawable(R.raw.attach_contact, "attach_contact", dp(26), dp(26));
             chat_attachButtonDrawables[4] = new RLottieDrawable(R.raw.attach_location, "attach_location", dp(26), dp(26));
             chat_attachButtonDrawables[5] = new RLottieDrawable(R.raw.attach_poll, "attach_poll", dp(26), dp(26));
+            chat_attachButtonDrawables[6] = new RLottieDrawable(R.raw.todo_attach, "todo_attach", dp(26), dp(26));
             chat_attachEmptyDrawable = resources.getDrawable(R.drawable.nophotos3);
 
             chat_shareIconDrawable = resources.getDrawable(R.drawable.filled_button_share).mutate();
@@ -8891,6 +8822,7 @@ public class Theme {
 
             addChatDrawable(key_drawable_botInline, chat_botInlineDrawable, key_chat_serviceIcon);
             addChatDrawable(key_drawable_botWebView, chat_botWebViewDrawable, key_chat_serviceIcon);
+            addChatDrawable(key_drawable_botLock, chat_botLockDrawable, key_chat_serviceIcon);
             addChatDrawable(key_drawable_botLink, chat_botLinkDrawable, key_chat_serviceIcon);
             addChatDrawable(key_drawable_botInvite, chat_botInviteDrawable, key_chat_serviceIcon);
             addChatDrawable(key_drawable_goIcon, chat_goIconDrawable, key_chat_serviceIcon);
@@ -8972,6 +8904,7 @@ public class Theme {
             chat_pollTimerPaint.setStrokeWidth(dp(1.1f));
             chat_actionTextPaint.setTextSize(dp(Math.max(16, SharedConfig.fontSize) - 2));
             chat_actionTextPaint2.setTextSize(dp(Math.max(16, SharedConfig.fontSize) - 2));
+            chat_actionTextPaint3.setTextSize(dp(Math.max(16, SharedConfig.fontSize) - 3));
             chat_unlockExtendedMediaTextPaint.setTextSize(dp(Math.max(16, SharedConfig.fontSize)));
             chat_contextResult_titleTextPaint.setTextSize(dp(15));
             chat_contextResult_descriptionTextPaint.setTextSize(dp(13));
@@ -9032,6 +8965,7 @@ public class Theme {
             chat_statusRecordPaint.setColor(getColor(key_chat_status));
             chat_actionTextPaint.setColor(getColor(key_chat_serviceText));
             chat_actionTextPaint2.setColor(getColor(key_chat_serviceText));
+            chat_actionTextPaint3.setColor(getColor(key_chat_serviceText));
             chat_actionTextPaint.linkColor = getColor(key_chat_serviceLink);
             chat_unlockExtendedMediaTextPaint.setColor(getColor(key_chat_serviceText));
             chat_contextResult_titleTextPaint.setColor(getColor(key_windowBackgroundWhiteBlackText));
@@ -9061,6 +8995,7 @@ public class Theme {
             setDrawableColorByKey(chat_goIconDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botInlineDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botWebViewDrawable, key_chat_serviceIcon);
+            setDrawableColorByKey(chat_botLockDrawable, key_chat_lockIcon);
             setDrawableColorByKey(chat_botInviteDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botLinkDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_msgInViewsDrawable, key_chat_inViews);
@@ -9285,6 +9220,7 @@ public class Theme {
             setDrawableColor(chat_msgStickerRepliesDrawable, 0xffffffff);
             chat_actionTextPaint.setColor(0xffffffff);
             chat_actionTextPaint2.setColor(0xffffffff);
+            chat_actionTextPaint3.setColor(0xffffffff);
             chat_actionTextPaint.linkColor = 0xffffffff;
             chat_unlockExtendedMediaTextPaint.setColor(0xffffffff);
             chat_botButtonPaint.setColor(0xffffffff);
@@ -9294,6 +9230,7 @@ public class Theme {
             setDrawableColor(chat_goIconDrawable, 0xffffffff);
             setDrawableColor(chat_botInlineDrawable, 0xffffffff);
             setDrawableColor(chat_botWebViewDrawable, 0xffffffff);
+            setDrawableColor(chat_botLockDrawable, 0xffffffff);
             setDrawableColor(chat_botInviteDrawable, 0xffffffff);
             setDrawableColor(chat_botLinkDrawable, 0xffffffff);
         } else {
@@ -9315,6 +9252,7 @@ public class Theme {
             setDrawableColorByKey(chat_goIconDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botInlineDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botWebViewDrawable, key_chat_serviceIcon);
+            setDrawableColorByKey(chat_botLockDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botInviteDrawable, key_chat_serviceIcon);
             setDrawableColorByKey(chat_botLinkDrawable, key_chat_serviceIcon);
             chat_botButtonPaint.setColor(getColor(key_chat_botButtonText));
@@ -9386,17 +9324,13 @@ public class Theme {
         final int w = (int) ((float) d.getIntrinsicWidth() / d.getIntrinsicHeight() * h);
         Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
         d.setBounds(0, 0, w, h);
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            final ColorFilter wasColorFilter = d.getColorFilter();
-            ColorMatrix colorMatrix = new ColorMatrix();
-            colorMatrix.setSaturation(1.3f);
-            AndroidUtilities.multiplyBrightnessColorMatrix(colorMatrix, .94f);
-            d.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
-            d.draw(new Canvas(bitmap));
-            d.setColorFilter(wasColorFilter);
-        } else {
-            d.draw(new Canvas(bitmap));
-        }
+        final ColorFilter wasColorFilter = d.getColorFilter();
+        ColorMatrix colorMatrix = new ColorMatrix();
+        colorMatrix.setSaturation(1.3f);
+        AndroidUtilities.multiplyBrightnessColorMatrix(colorMatrix, .94f);
+        d.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+        d.draw(new Canvas(bitmap));
+        d.setColorFilter(wasColorFilter);
         Utilities.blurBitmap(bitmap, 3, 1, bitmap.getWidth(), bitmap.getHeight(), bitmap.getRowBytes());
         return blurredBitmap = bitmap;
     }
@@ -9753,13 +9687,15 @@ public class Theme {
         }
     }
 
-    public static void setSelectorDrawableColor(Drawable drawable, int color, boolean selected) {
+    public static boolean setSelectorDrawableColor(Drawable drawable, int color, boolean selected) {
+        boolean changed = false;
         if (drawable instanceof StateListDrawable) {
             try {
                 Drawable state;
                 if (selected) {
                     state = getStateDrawable(drawable, 0);
                     if (state instanceof ShapeDrawable) {
+                        changed = ((ShapeDrawable) state).getPaint().getColor() != color || changed;
                         ((ShapeDrawable) state).getPaint().setColor(color);
                     } else {
                         state.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
@@ -9769,6 +9705,7 @@ public class Theme {
                     state = getStateDrawable(drawable, 2);
                 }
                 if (state instanceof ShapeDrawable) {
+                    changed = ((ShapeDrawable) state).getPaint().getColor() != color || changed;
                     ((ShapeDrawable) state).getPaint().setColor(color);
                 } else {
                     state.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
@@ -9776,17 +9713,18 @@ public class Theme {
             } catch (Throwable ignore) {
 
             }
-        } else if (Build.VERSION.SDK_INT >= 21 && drawable instanceof RippleDrawable) {
+        } else if (drawable instanceof RippleDrawable) {
             RippleDrawable rippleDrawable = (RippleDrawable) drawable;
             if (selected) {
                 rippleDrawable.setColor(new ColorStateList(
-                        new int[][]{StateSet.WILD_CARD},
-                        new int[]{color}
+                    new int[][]{StateSet.WILD_CARD},
+                    new int[]{color}
                 ));
             } else {
                 if (rippleDrawable.getNumberOfLayers() > 0) {
                     Drawable drawable1 = rippleDrawable.getDrawable(0);
                     if (drawable1 instanceof ShapeDrawable) {
+                        changed = ((ShapeDrawable) drawable1).getPaint().getColor() != color || changed;
                         ((ShapeDrawable) drawable1).getPaint().setColor(color);
                     } else {
                         drawable1.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
@@ -9794,6 +9732,7 @@ public class Theme {
                 }
             }
         }
+        return changed;
     }
 
     public static boolean isThemeWallpaperPublic() {

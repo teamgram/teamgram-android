@@ -305,6 +305,23 @@ public class ConnectionsManager extends BaseController {
         return native_getTimeDifference(currentAccount);
     }
 
+    public <T extends TLObject> int sendRequestTyped(TLMethod<T> method, Utilities.Callback2<T, TLRPC.TL_error> completionBlock) {
+        return sendRequestTyped(method, null, completionBlock);
+    }
+
+    public <T extends TLObject> int sendRequestTyped(TLMethod<T> method, Executor executor, Utilities.Callback2<T, TLRPC.TL_error> completionBlock) {
+        return sendRequest(method, (res, err) -> {
+            //noinspection unchecked
+            T result = (T) res;
+
+            if (executor != null) {
+                executor.execute(() -> completionBlock.run(result, err));
+            } else {
+                completionBlock.run(result, err);
+            }
+        });
+    }
+
     public int sendRequest(TLObject object, RequestDelegate completionBlock) {
         return sendRequest(object, completionBlock, null, 0);
     }
@@ -364,6 +381,7 @@ public class ConnectionsManager extends BaseController {
                     int responseSize = 0;
                     if (response != 0) {
                         NativeByteBuffer buff = NativeByteBuffer.wrap(response);
+                        buff.setDataSourceType(TLDataSourceType.NETWORK);
                         buff.reused = true;
                         responseSize = buff.limit();
                         int magic = buff.readInt32(true);
@@ -403,8 +421,8 @@ public class ConnectionsManager extends BaseController {
                     }
                     if (BuildVars.LOGS_ENABLED) {
                         FileLog.d("java received " + resp + (error != null ? " error = " + error : "") + " messageId = 0x" + Long.toHexString(requestMsgId));
+                        FileLog.dumpResponseAndRequest(currentAccount, object, resp, error, requestMsgId, finalStartRequestTime, requestToken);
                     }
-                    FileLog.dumpResponseAndRequest(currentAccount, object, resp, error, requestMsgId, finalStartRequestTime, requestToken);
                     final TLObject finalResponse = resp;
                     final TLRPC.TL_error finalError = error;
                     Utilities.stageQueue.postRunnable(() -> {
@@ -412,6 +430,9 @@ public class ConnectionsManager extends BaseController {
                             onComplete.run(finalResponse, finalError);
                         } else if (onCompleteTimestamp != null) {
                             onCompleteTimestamp.run(finalResponse, finalError, timestamp);
+                        } else if (finalResponse instanceof TLRPC.Updates) {
+                            KeepAliveJob.finishJob();
+                            AccountInstance.getInstance(currentAccount).getMessagesController().processUpdates((TLRPC.Updates) finalResponse, false);
                         }
                         if (finalResponse != null) {
                             finalResponse.freeResources();
@@ -736,6 +757,7 @@ public class ConnectionsManager extends BaseController {
     public static void onUnparsedMessageReceived(long address, final int currentAccount, long messageId) {
         try {
             NativeByteBuffer buff = NativeByteBuffer.wrap(address);
+            buff.setDataSourceType(TLDataSourceType.NETWORK);
             buff.reused = true;
             int constructor = buff.readInt32(true);
             final TLObject message = TLClassStore.Instance().TLdeserialize(buff, constructor, true);

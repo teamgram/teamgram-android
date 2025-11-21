@@ -70,6 +70,7 @@ import org.telegram.ui.Components.StickerEmptyView;
 import org.telegram.ui.Components.TranslateAlert2;
 import org.telegram.ui.Components.UItem;
 import org.telegram.ui.Components.UniversalAdapter;
+import org.telegram.ui.Components.UniversalRecyclerView;
 import org.telegram.ui.Components.ViewPagerFixed;
 import org.telegram.ui.ProfileActivity;
 import org.telegram.ui.Stories.StoriesController;
@@ -195,7 +196,7 @@ public class BotPreviewsEditContainer extends FrameLayout implements Notificatio
             }
             private String lastLang;
             @Override
-            protected void onTabAnimationUpdate(boolean manual) {
+            public void onTabAnimationUpdate(boolean manual) {
                 String lang = getCurrentLang();
                 if (!TextUtils.equals(lastLang, lang)) {
                     lastLang = lang;
@@ -616,7 +617,7 @@ public class BotPreviewsEditContainer extends FrameLayout implements Notificatio
         }
         chatAttachAlert.setDelegate(new ChatAttachAlert.ChatAttachViewDelegate() {
             @Override
-            public void didPressedButton(int button, boolean arg, boolean notify, int scheduleDate, long effectId, boolean invertMedia, boolean forceDocument, long payStars) {
+            public void didPressedButton(int button, boolean arg, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, boolean forceDocument, long payStars) {
                 if (!chatAttachAlert.getPhotoLayout().getSelectedPhotos().isEmpty()) {
                     HashMap<Object, Object> selectedPhotos = chatAttachAlert.getPhotoLayout().getSelectedPhotos();
                     ArrayList<Object> selectedPhotosOrder = chatAttachAlert.getPhotoLayout().getSelectedPhotosOrder();
@@ -1978,7 +1979,7 @@ public class BotPreviewsEditContainer extends FrameLayout implements Notificatio
                     return new LanguageView(context);
                 }
                 @Override
-                public void bindView(View view, UItem item, boolean divider) {
+                public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
                     ((LanguageView) view).set((TranslateController.Language) item.object, divider);
                 }
                 public static UItem of(TranslateController.Language l) {

@@ -325,7 +325,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
             lastPressedMarkerView.setAlpha(0.0f);
             lastPressedMarkerView.setOnClickListener(v -> {
                 if (parentFragment != null && parentFragment.isInScheduleMode()) {
-                    AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate) -> {
+                    AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> {
                         delegate.didSelectLocation(location.venue, locationType, notify, scheduleDate, 0);
                         finishFragment();
                     });
@@ -1023,7 +1023,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         if (searchStoriesArea != null) {
             sharedMediaHeader = new GraySectionCell(context, resourceProvider);
-            sharedMediaLayout = new SharedMediaLayout(context, 0, new SharedMediaLayout.SharedMediaPreloader(this), 0, null, null, null, SharedMediaLayout.TAB_STORIES, this, new SharedMediaLayout.Delegate() {
+            sharedMediaLayout = new SharedMediaLayout(context, 0, new SharedMediaLayout.SharedMediaPreloader(this), 0, null, null, null, SharedMediaLayout.TAB_STORIES, 0, this, new SharedMediaLayout.Delegate() {
                 @Override
                 public void scrollToSharedMedia() {
 
@@ -1213,7 +1213,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                         location.geo.lat = AndroidUtilities.fixLocationCoord(userLocation.getLatitude());
                         location.geo._long = AndroidUtilities.fixLocationCoord(userLocation.getLongitude());
                         if (parentFragment != null && parentFragment.isInScheduleMode()) {
-                            AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate) -> {
+                            AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> {
                                 delegate.didSelectLocation(location, locationType, notify, scheduleDate, 0);
                                 finishFragment();
                             });
@@ -1241,7 +1241,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                 Object object = adapter.getItem(position);
                 if (object instanceof TLRPC.TL_messageMediaVenue) {
                     if (parentFragment != null && parentFragment.isInScheduleMode()) {
-                        AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate) -> {
+                        AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> {
                             delegate.didSelectLocation((TLRPC.TL_messageMediaVenue) object, locationType, notify, scheduleDate, 0);
                             finishFragment();
                         });
@@ -1417,7 +1417,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                     adapter.setCustomLocation(userLocation);
                 } else if (object != null && delegate != null) {
                     if (parentFragment != null && parentFragment.isInScheduleMode()) {
-                        AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate) -> {
+                        AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), parentFragment.getDialogId(), (notify, scheduleDate, scheduleRepeatPeriod) -> {
                             delegate.didSelectLocation(object, locationType, notify, scheduleDate, 0);
                             finishFragment();
                         });
@@ -3125,7 +3125,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                 if (target == listView && sharedMediaLayout != null && sharedMediaLayout.isAttachedToWindow()) {
                     RecyclerListView innerListView = sharedMediaLayout.getCurrentListView();
                     int top = sharedMediaLayout.getTop();
-                    if (top == 0) {
+                    if (innerListView != null && top == 0) {
                         consumed[1] = dyUnconsumed;
                         innerListView.scrollBy(0, dyUnconsumed);
                     }

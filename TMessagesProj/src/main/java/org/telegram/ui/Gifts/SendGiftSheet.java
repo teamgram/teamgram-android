@@ -2,6 +2,7 @@ package org.telegram.ui.Gifts;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.lerp;
+import static org.telegram.messenger.LocaleController.formatPluralStringComma;
 import static org.telegram.messenger.LocaleController.formatSpannable;
 import static org.telegram.messenger.LocaleController.formatString;
 import static org.telegram.messenger.LocaleController.getString;
@@ -22,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 
 import com.android.billingclient.api.BillingClient;
@@ -33,6 +35,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AnimationNotificationsLocker;
 import org.telegram.messenger.BillingController;
 import org.telegram.messenger.BuildVars;
+import org.telegram.messenger.GiftAuctionController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.MessageObject;
@@ -84,13 +87,14 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
 
-public class SendGiftSheet extends BottomSheetWithRecyclerListView implements NotificationCenter.NotificationCenterDelegate {
+public class SendGiftSheet extends BottomSheetWithRecyclerListView implements NotificationCenter.NotificationCenterDelegate, GiftAuctionController.OnAuctionUpdateListener {
 
     private final boolean self;
     private final int currentAccount;
     private final long dialogId;
     private final boolean forceUpgrade, forceNotUpgrade;
     private final TL_stars.StarGift starGift;
+    private @Nullable GiftAuctionController.Auction auction;
     private final GiftPremiumBottomSheet.GiftTier premiumTier;
     private final String name;
     private final Runnable closeParentSheet;
@@ -150,6 +154,10 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         this.currentAccount = currentAccount;
         this.dialogId = dialogId;
         this.starGift = starGift;
+        if (starGift != null && starGift.auction) {
+            auction = GiftAuctionController.getInstance(currentAccount).subscribeToGiftAuction(starGift.id, this);
+        }
+
         this.premiumTier = premiumTier;
         this.closeParentSheet = closeParentSheet;
         this.forceUpgrade = forceUpgrade;
@@ -332,7 +340,7 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         buttonShadow.setBackgroundColor(Theme.getColor(Theme.key_dialogGrayLine, resourcesProvider));
         buttonContainer.addView(buttonShadow, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.FILL_HORIZONTAL | Gravity.TOP));
 
-        final float limitedProgress = Utilities.clamp(starGift == null ? 0 : (float) starGift.availability_remains / starGift.availability_total, 0.97f, 0);
+        final float limitedProgress = Utilities.clamp(starGift == null ? 0 : (float) starGift.availability_remains / starGift.availability_total, 1f, 0);
         limitContainer = new FrameLayout(context);
         limitContainer.setVisibility(starGift != null && starGift.limited ? View.VISIBLE : View.GONE);
         limitContainer.setBackground(Theme.createRoundRectDrawable(dp(6), Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider)));
@@ -408,6 +416,21 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         buttonContainer.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, Gravity.FILL, 10, 10, 10, 10));
         button.setOnClickListener(v -> {
             if (button.isLoading()) return;
+
+            if (auction != null) {
+                final AuctionBidSheet.Params p = new AuctionBidSheet.Params(dialogId, anonymous, getMessage());
+                AuctionBidSheet auctionSheet = new AuctionBidSheet(context, resourcesProvider, p, auction);
+                auctionSheet.show();
+                auctionSheet.setCloseParentSheet(closeParentSheet);
+
+                AndroidUtilities.hideKeyboard(messageEdit);
+                dismiss();
+                if (!isDismissed) {
+                    AndroidUtilities.runOnUIThread(this::dismiss, 500);
+                }
+                return;
+            }
+
             button.setLoading(true);
             if (messageEdit.editTextEmoji.getEmojiPadding() > 0) {
                 messageEdit.editTextEmoji.hidePopup(true);
@@ -511,7 +534,12 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
     }
 
     private void setButtonText(boolean animated) {
-        if (starGift != null) {
+        if (auction != null) {
+            button.setText(getString(R.string.Gift2AuctionPlaceABid), animated);
+            final int timeLeft = auction.auctionStateActive != null ?
+                Math.max(0, auction.auctionStateActive.end_date - (ConnectionsManager.getInstance(currentAccount).getCurrentTime())) : 0;
+            button.setSubText(formatString(R.string.Gift2AuctionTimeLeft, LocaleController.formatTTLString(timeLeft)), animated);
+        } else if (starGift != null) {
             final long balance = StarsController.getInstance(currentAccount).getBalance().amount;
             final long price = this.starGift.stars + (upgrade ? this.starGift.upgrade_stars : 0) + (TextUtils.isEmpty(messageEdit.getText()) ? 0 : send_paid_messages_stars);
             button.setText(StarsIntroActivity.replaceStars(LocaleController.formatPluralStringComma(self ? "Gift2SendSelf" : "Gift2Send", (int) price), cachedStarSpan), animated);
@@ -529,6 +557,18 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
             }
             button.setSubText(null, animated);
         }
+    }
+
+    @Override
+    public void onUpdate(GiftAuctionController.Auction auction) {
+        this.auction = auction;
+    }
+
+
+    protected BulletinFactory getParentBulletinFactory() {
+        final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+        if (lastFragment == null) return null;
+        return BulletinFactory.of(lastFragment);
     }
 
     private final ColoredImageSpan[] cachedStarSpan = new ColoredImageSpan[1];
@@ -567,6 +607,15 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
                     AndroidUtilities.hideKeyboard(messageEdit);
                     dismiss();
                     StarsController.getInstance(currentAccount).makeStarGiftSoldOut(starGift);
+                    return;
+                } else if ("STARGIFT_USER_USAGE_LIMITED".equalsIgnoreCase(err)) {
+                    AndroidUtilities.hideKeyboard(messageEdit);
+                    dismiss();
+                    BulletinFactory bulletinFactory = getParentBulletinFactory();
+                    if (bulletinFactory == null || starGift == null || !starGift.limited_per_user) return;
+                    bulletinFactory
+                        .createSimpleMultiBulletin(starGift.getDocument(), AndroidUtilities.replaceTags(formatPluralStringComma("Gift2PerUserLimit", starGift.per_user_total)))
+                        .show();
                     return;
                 }
                 button.setLoading(false);
@@ -807,6 +856,8 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         super.show();
     }
 
+    boolean isDismissed = false;
+
     @Override
     public void dismiss() {
         if (messageEdit.editTextEmoji.getEmojiPadding() > 0) {
@@ -819,6 +870,12 @@ public class SendGiftSheet extends BottomSheetWithRecyclerListView implements No
         if (messageEdit != null) {
             messageEdit.editTextEmoji.onPause();
         }
+
+        if (auction != null) {
+            GiftAuctionController.getInstance(currentAccount).unsubscribeFromGiftAuction(auction.giftId, this);
+        }
+
+        isDismissed = true;
         super.dismiss();
     }
 

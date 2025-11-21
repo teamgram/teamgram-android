@@ -1,6 +1,5 @@
 package org.telegram.ui.bots;
 
-import static org.telegram.messenger.AndroidUtilities.distanceInfluenceForSnapDuration;
 import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.ui.Components.Bulletin.DURATION_PROLONG;
@@ -16,7 +15,6 @@ import android.content.ContextWrapper;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorFilter;
-import android.graphics.Insets;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
@@ -30,9 +28,7 @@ import android.os.Bundle;
 import android.text.SpannableStringBuilder;
 import android.text.TextPaint;
 import android.text.TextUtils;
-import android.util.Log;
 import android.util.Pair;
-import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -49,15 +45,9 @@ import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.math.MathUtils;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsAnimationCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
-
-import com.google.android.exoplayer2.offline.Download;
-import com.google.android.gms.vision.Frame;
 
 import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
@@ -75,7 +65,6 @@ import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SendMessagesHelper;
-import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -97,7 +86,6 @@ import org.telegram.ui.ActionBar.INavigationLayout;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ArticleViewer;
 import org.telegram.ui.ChatActivity;
-import org.telegram.ui.Components.AnchorSpan;
 import org.telegram.ui.Components.Bulletin;
 import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
@@ -107,7 +95,6 @@ import org.telegram.ui.Components.OverlayActionBarLayoutDialog;
 import org.telegram.ui.Components.PasscodeView;
 import org.telegram.ui.Components.SimpleFloatPropertyCompat;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
-import org.telegram.ui.Components.VerticalPositionAutoAnimator;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.PaymentFormActivity;
@@ -212,6 +199,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
     private long peerId;
     private long queryId;
     private int replyToMsgId;
+    private long monoforumTopicId;
     private boolean silent;
     private String buttonText;
 
@@ -266,6 +254,14 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             prolongWebView.silent = silent;
             if (replyToMsgId != 0) {
                 prolongWebView.reply_to = SendMessagesHelper.getInstance(currentAccount).createReplyInput(replyToMsgId);
+                if (monoforumTopicId != 0) {
+                    prolongWebView.reply_to.monoforum_peer_id = MessagesController.getInstance(currentAccount).getInputPeer(monoforumTopicId);
+                    prolongWebView.reply_to.flags |= 32;
+                }
+                prolongWebView.flags |= 1;
+            } else if (monoforumTopicId != 0) {
+                prolongWebView.reply_to = new TLRPC.TL_inputReplyToMonoForum();
+                prolongWebView.reply_to.monoforum_peer_id = MessagesController.getInstance(currentAccount).getInputPeer(monoforumTopicId);
                 prolongWebView.flags |= 1;
             }
             ConnectionsManager.getInstance(currentAccount).sendRequest(prolongWebView, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
@@ -523,6 +519,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                 invalidate();
             }
         };
+        webViewContainer.setOnVerifiedAge(onVerifiedAge);
         webViewContainer.setDelegate(new BotWebViewContainer.Delegate() {
             private boolean sentWebViewData;
 
@@ -828,7 +825,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
             @Override
             public boolean isClipboardAvailable() {
-                return MediaDataController.getInstance(currentAccount).botInAttachMenu(botId);
+                return MediaDataController.getInstance(currentAccount).botInAttachMenu(botId) || MessagesController.getInstance(currentAccount).whitelistedBots.contains(botId);
             }
 
             @Override
@@ -859,7 +856,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         dimPaint.setColor(0x40000000);
         actionBarColor = getColor(Theme.key_windowBackgroundWhite);
         navBarColor = getColor(Theme.key_windowBackgroundGray);
-        AndroidUtilities.setNavigationBarColor(getWindow(), navBarColor, false);
+        AndroidUtilities.setNavigationBarColor(this, navBarColor, false);
         windowView = new WindowView(context);
         windowView.setDelegate((keyboardHeight, isWidthGreater) -> {
             if (keyboardHeight > AndroidUtilities.dp(20)) {
@@ -1151,7 +1148,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            AndroidUtilities.setLightNavigationBar(window, ColorUtils.calculateLuminance(navBarColor) >= 0.721f);
+            AndroidUtilities.setLightNavigationBar(this, ColorUtils.calculateLuminance(navBarColor) >= 0.721f);
         }
 
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetNewTheme);
@@ -1325,6 +1322,14 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         return false;
     }
 
+    private Utilities.Callback4<Boolean, Double, String, Double> onVerifiedAge;
+    public void setOnVerifiedAge(Utilities.Callback4<Boolean, Double, String, Double> callback) {
+        onVerifiedAge = callback;
+        if (webViewContainer != null) {
+            webViewContainer.setOnVerifiedAge(onVerifiedAge);
+        }
+    }
+
     Drawable verifiedDrawable;
 
     public void requestWebView(BaseFragment fragment, WebViewRequestProps props) {
@@ -1333,6 +1338,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         this.peerId = props.peerId;
         this.botId = props.botId;
         this.replyToMsgId = props.replyToMsgId;
+        this.monoforumTopicId = props.monoforumTopicId;
         this.silent = props.silent;
         this.buttonText = props.buttonText;
         this.currentWebApp = props.app;
@@ -1416,7 +1422,9 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             }
         }
 
-        menu.addItem(R.id.menu_collapse_bot, R.drawable.arrow_more);
+        if (onVerifiedAge == null) {
+            menu.addItem(R.id.menu_collapse_bot, R.drawable.arrow_more);
+        }
         optionsItem = menu.addItem(0, optionsIcon = new BotFullscreenButtons.OptionsIcon(getContext()));
         optionsItem.setOnClickListener(v -> {
             openOptions();
@@ -1520,6 +1528,14 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
                     if (replyToMsgId != 0) {
                         req.reply_to = SendMessagesHelper.getInstance(currentAccount).createReplyInput(replyToMsgId);
+                        if (monoforumTopicId != 0) {
+                            req.reply_to.monoforum_peer_id = MessagesController.getInstance(currentAccount).getInputPeer(monoforumTopicId);
+                            req.reply_to.flags |= 32;
+                        }
+                        req.flags |= 1;
+                    } else if (monoforumTopicId != 0) {
+                        req.reply_to = new TLRPC.TL_inputReplyToMonoForum();
+                        req.reply_to.monoforum_peer_id = MessagesController.getInstance(currentAccount).getInputPeer(monoforumTopicId);
                         req.flags |= 1;
                     }
 
@@ -1644,13 +1660,13 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             o.addGap();
         }
         o
-            .add(R.drawable.msg_bot, LocaleController.getString(R.string.BotWebViewOpenBot), () -> {
+            .addIf(onVerifiedAge == null, R.drawable.msg_bot, LocaleController.getString(R.string.BotWebViewOpenBot), () -> {
                 if (parentActivity instanceof LaunchActivity) {
                     ((LaunchActivity) parentActivity).presentFragment(ChatActivity.of(botId));
                 }
                 dismiss(true);
             })
-            .addIf(hasSettings, R.drawable.msg_settings, LocaleController.getString(R.string.BotWebViewSettings), () -> {
+            .addIf(onVerifiedAge == null && hasSettings, R.drawable.msg_settings, LocaleController.getString(R.string.BotWebViewSettings), () -> {
                 webViewContainer.onSettingsButtonPressed();
             })
             .add(R.drawable.msg_retry, LocaleController.getString(R.string.BotWebViewReloadPage), () -> {
@@ -1667,13 +1683,13 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                 webViewContainer.loadFlickerAndSettingsItem(currentAccount, botId, null);
                 webViewContainer.reload();
             })
-            .addIf(userbot != null && userbot.bot_has_main_app, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut), () -> {
+            .addIf(onVerifiedAge == null && userbot != null && userbot.bot_has_main_app, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut), () -> {
                 MediaDataController.getInstance(currentAccount).installShortcut(botId, MediaDataController.SHORTCUT_TYPE_ATTACHED_BOT);
             })
-            .add(R.drawable.menu_intro, LocaleController.getString(R.string.BotWebViewToS), () -> {
+            .addIf(onVerifiedAge == null, R.drawable.menu_intro, LocaleController.getString(R.string.BotWebViewToS), () -> {
                 Browser.openUrl(getContext(), LocaleController.getString(R.string.BotWebViewToSLink));
             })
-            .addIf(currentBot != null && (currentBot.show_in_side_menu || currentBot.show_in_attach_menu), R.drawable.msg_delete, LocaleController.getString(R.string.BotWebViewDeleteBot), () -> {
+            .addIf(onVerifiedAge == null && currentBot != null && (currentBot.show_in_side_menu || currentBot.show_in_attach_menu), R.drawable.msg_delete, LocaleController.getString(R.string.BotWebViewDeleteBot), () -> {
                 deleteBot(currentAccount, botId, () -> dismiss());
             });
 
@@ -2006,6 +2022,10 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         if (dismissed) {
             return;
         }
+        if (onVerifiedAge != null) {
+            intoTabs = false;
+        }
+
         dismissed = true;
         setOpen(false);
         AndroidUtilities.cancelRunOnUIThread(pollRunnable);
@@ -2298,7 +2318,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             navBarColor = to;
             checkNavBarColor();
         }
-        AndroidUtilities.setNavigationBarColor(getWindow(), navBarColor, false);
+        AndroidUtilities.setNavigationBarColor(this, navBarColor, false);
     }
 
     public void setActionBarColor(int color, boolean isOverride, boolean animated) {
@@ -2364,7 +2384,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
     public void checkNavBarColor() {
         if (!superDismissed && LaunchActivity.instance != null) {
-            LaunchActivity.instance.checkSystemBarColors(true, true, true, false);
+            LaunchActivity.instance.checkSystemBarColors(true, true, true);
 //            AndroidUtilities.setNavigationBarColor(getWindow(), navBarColor, false);
         }
         if (windowView != null) {
@@ -2571,8 +2591,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                 invalidate();
                 updateWindowFlags();
                 if (LaunchActivity.instance != null && fullscreen) {
-                    LaunchActivity.instance.requestCustomNavigationBar();
-                    LaunchActivity.instance.setNavigationBarColor(navBarColor, false);
+                    LaunchActivity.instance.setNavigationBarColor(navBarColor);
                 }
             }
         }

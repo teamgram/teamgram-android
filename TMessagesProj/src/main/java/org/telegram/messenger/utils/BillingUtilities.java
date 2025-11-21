@@ -18,17 +18,15 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
-import org.telegram.tgnet.AbstractSerializedData;
 import org.telegram.tgnet.InputSerializedData;
 import org.telegram.tgnet.OutputSerializedData;
 import org.telegram.tgnet.SerializedData;
 import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TLParseException;
 import org.telegram.tgnet.TLRPC;
 
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class BillingUtilities {
@@ -57,9 +55,15 @@ public class BillingUtilities {
     }
 
     public static Pair<String, String> createDeveloperPayload(TLRPC.InputStorePaymentPurpose paymentPurpose, AccountInstance accountInstance) {
-        long currentAccountId = accountInstance.getUserConfig().getClientUserId();
-        byte[] currentAccountIdBytes = String.valueOf(currentAccountId).getBytes(Charsets.UTF_8);
-        String obfuscatedAccountId = Base64.encodeToString(currentAccountIdBytes, Base64.DEFAULT);
+        String obfuscatedAccountId;
+        if (accountInstance.getUserConfig().isClientActivated()) {
+            long currentAccountId = accountInstance.getUserConfig().getClientUserId();
+            byte[] currentAccountIdBytes = String.valueOf(currentAccountId).getBytes(Charsets.UTF_8);
+            obfuscatedAccountId = Base64.encodeToString(currentAccountIdBytes, Base64.DEFAULT);
+        } else {
+            byte[] currentAccountIdBytes = ("account-" + accountInstance.getCurrentAccount()).getBytes(Charsets.UTF_8);
+            obfuscatedAccountId = Base64.encodeToString(currentAccountIdBytes, Base64.DEFAULT);
+        }
         return Pair.create(obfuscatedAccountId, savePurpose(paymentPurpose));
     }
 
@@ -173,13 +177,7 @@ public class BillingUtilities {
                     result = new TL_savedPurpose();
                     break;
             }
-            if (result == null && exception) {
-                throw new RuntimeException(String.format("can't parse magic %x in TL_savedPurpose", constructor));
-            }
-            if (result != null) {
-                result.readParams(stream, exception);
-            }
-            return result;
+            return TLdeserialize(TL_savedPurpose.class, result, stream, constructor, exception);
         }
 
         @Override
@@ -237,12 +235,20 @@ public class BillingUtilities {
             }
 
             byte[] obfuscatedAccountIdBytes = Base64.decode(obfuscatedAccountId, Base64.DEFAULT);
-            long accountId = Long.parseLong(new String(obfuscatedAccountIdBytes, Charsets.UTF_8));
+            String obfuscatedAccountIdString = new String(obfuscatedAccountIdBytes, Charsets.UTF_8);
+            FileLog.d("Billing: Extract payload. obfuscatedAccountIdString=" + obfuscatedAccountIdString);
 
-            AccountInstance acc = findAccountById(accountId);
-            if (acc == null) {
-                FileLog.d("Billing: Extract payload. AccountInstance not found, accountId=" + accountId);
-                return null;
+            AccountInstance acc;
+            if (obfuscatedAccountIdString.startsWith("account-")) {
+                int currentAccount = Integer.parseInt(obfuscatedAccountIdString.substring(8));
+                acc = AccountInstance.getInstance(currentAccount);
+            } else {
+                long accountId = Long.parseLong(obfuscatedAccountIdString);
+                acc = findAccountById(accountId);
+                if (acc == null) {
+                    FileLog.d("Billing: Extract payload. AccountInstance not found, accountId=" + accountId);
+                    return null;
+                }
             }
             return Pair.create(acc, purpose);
         } catch (Exception e) {

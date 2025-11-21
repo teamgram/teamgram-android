@@ -107,6 +107,7 @@ import org.telegram.ui.Cells.ProfileSearchCell;
 import org.telegram.ui.Cells.ShareDialogCell;
 import org.telegram.ui.Cells.ShareTopicCell;
 import org.telegram.ui.ChatActivity;
+import org.telegram.ui.Components.Forum.ForumUtilities;
 import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.MessageStatisticActivity;
@@ -549,7 +550,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         if (sendingMessageObjects != null) {
             for (int a = 0, N = sendingMessageObjects.size(); a < N; a++) {
                 MessageObject messageObject = sendingMessageObjects.get(a);
-                if (messageObject.isPoll()) {
+                if (messageObject.isTodo()) {
+                    hasPoll = 3;
+                } else if (messageObject.isPoll()) {
                     hasPoll = messageObject.isPublicPoll() ? 2 : 1;
                     if (hasPoll == 2) {
                         break;
@@ -1102,42 +1105,10 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             }
         });
         topicsGridView.setOnItemClickListener((view, position) -> {
-            TLRPC.TL_forumTopic topic = shareTopicsAdapter.getItem(position);
-            if (topic == null || selectedTopicDialog == null) {
-                return;
+            TLRPC.TL_forumTopic topic = shareTopicsAdapter.getItemTopic(position);
+            if (topic != null) {
+                onTopicCellClick(topic);
             }
-
-            long dialogId = selectedTopicDialog.id;
-            TLRPC.Dialog dialog = selectedTopicDialog;
-
-            selectedDialogs.put(dialogId, dialog);
-            selectedDialogTopics.put(dialog, topic);
-            updateSelectedCount(2);
-
-            if (searchIsVisible || searchWasVisibleBeforeTopics) {
-                TLRPC.Dialog existingDialog = listAdapter.dialogsMap.get(dialog.id);
-                if (existingDialog == null) {
-                    listAdapter.dialogsMap.put(dialog.id, dialog);
-                    listAdapter.dialogs.add(listAdapter.dialogs.isEmpty() ? 0 : 1, dialog);
-                }
-                listAdapter.notifyDataSetChanged();
-                updateSearchAdapter = false;
-                searchView.searchEditText.setText("");
-                checkCurrentList(false);
-            }
-            for (int i = 0; i < getMainGridView().getChildCount(); i++) {
-                View child = getMainGridView().getChildAt(i);
-
-                if (child instanceof ShareDialogCell && ((ShareDialogCell) child).getCurrentDialog() == selectedTopicDialog.id) {
-                    ShareDialogCell cell = (ShareDialogCell) child;
-
-                    if (cell != null) {
-                        cell.setTopic(topic, true);
-                        cell.setChecked(true, true);
-                    }
-                }
-            }
-            collapseTopics();
         });
         topicsGridView.setVisibility(View.GONE);
         containerView.addView(topicsGridView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
@@ -1884,10 +1855,16 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
 
         if (DialogObject.isChatDialog(dialog.id)) {
             TLRPC.Chat chat = MessagesController.getInstance(currentAccount).getChat(-dialog.id);
-            if (ChatObject.isChannel(chat) && !chat.megagroup && (!ChatObject.isCanWriteToChannel(-dialog.id, currentAccount) || hasPoll == 2)) {
+            if (ChatObject.isChannel(chat) && !chat.megagroup && (!ChatObject.isCanWriteToChannel(-dialog.id, currentAccount) || hasPoll == 2 || hasPoll == 3)) {
                 AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity);
                 builder.setTitle(LocaleController.getString(R.string.SendMessageTitle));
-                if (hasPoll == 2) {
+                if (hasPoll == 3) {
+                    if (ChatObject.isActionBannedByDefault(chat, ChatObject.ACTION_SEND_POLLS)) {
+                        builder.setMessage(LocaleController.getString(R.string.ErrorSendRestrictedTodoAll));
+                    } else {
+                        builder.setMessage(LocaleController.getString(R.string.ErrorSendRestrictedTodo));
+                    }
+                } else if (hasPoll == 2) {
                     if (isChannel) {
                         builder.setMessage(LocaleController.getString(R.string.PublicPollCantForward));
                     } else if (ChatObject.isActionBannedByDefault(chat, ChatObject.ACTION_SEND_POLLS)) {
@@ -1905,7 +1882,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         } else if (DialogObject.isEncryptedDialog(dialog.id) && (hasPoll != 0)) {
             AlertDialog.Builder builder = new AlertDialog.Builder(parentActivity);
             builder.setTitle(LocaleController.getString(R.string.SendMessageTitle));
-            if (hasPoll != 0) {
+            if (hasPoll == 3) {
+                builder.setMessage(LocaleController.getString(R.string.TodoCantForwardSecretChat));
+            } else if (hasPoll != 0) {
                 builder.setMessage(LocaleController.getString(R.string.PollCantForwardSecretChat));
             } else {
                 builder.setMessage(LocaleController.getString(R.string.InvoiceCantForwardSecretChat));
@@ -1924,7 +1903,8 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             }
             updateSelectedCount(1);
         } else {
-            if (DialogObject.isChatDialog(dialog.id) && MessagesController.getInstance(currentAccount).getChat(-dialog.id) != null && MessagesController.getInstance(currentAccount).getChat(-dialog.id).forum) {
+            TLRPC.Chat fChat = MessagesController.getInstance(currentAccount).getChat(-dialog.id);
+            if (DialogObject.isChatDialog(dialog.id) && (ChatObject.isForum(fChat) || ChatObject.isMonoForum(fChat) && ChatObject.canManageMonoForum(currentAccount, fChat))) {
                 selectedTopicDialog = dialog;
                 topicsLayoutManager.scrollToPositionWithOffset(0, scrollOffsetY - topicsGridView.getPaddingTop());
                 AtomicReference<Runnable> timeoutRef = new AtomicReference<>();
@@ -1950,8 +1930,13 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                                 topicsGridView.setAlpha(0);
                                 topicsBackActionBar.setVisibility(View.VISIBLE);
                                 topicsBackActionBar.setAlpha(0);
-                                topicsBackActionBar.setTitle(MessagesController.getInstance(currentAccount).getChat(-dialog.id).title);
-                                topicsBackActionBar.setSubtitle(LocaleController.getString(R.string.SelectTopic));
+                                if (ChatObject.isMonoForum(currentAccount, dialog.id)) {
+                                    topicsBackActionBar.setTitle(ForumUtilities.getMonoForumTitle(currentAccount, MessagesController.getInstance(currentAccount).getChat(-dialog.id)));
+                                    topicsBackActionBar.setSubtitle(LocaleController.getString(R.string.SelectChat));
+                                } else {
+                                    topicsBackActionBar.setTitle(MessagesController.getInstance(currentAccount).getChat(-dialog.id).title);
+                                    topicsBackActionBar.setSubtitle(LocaleController.getString(R.string.SelectTopic));
+                                }
                                 searchWasVisibleBeforeTopics = searchIsVisible;
 
                                 if (topicsAnimation != null) {
@@ -2385,20 +2370,24 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 List<Long> removeKeys = new ArrayList<>();
                 for (int a = 0; a < selectedDialogs.size(); a++) {
                     long key = selectedDialogs.keyAt(a);
+                    boolean isMonoForum = MessagesController.getInstance(currentAccount).isMonoForum(key);
                     final Long price = prices == null ? (Long) 0L : prices.get(key);
                     if (price != null && price > 0) hadPaid = true;
                     TLRPC.TL_forumTopic topic = selectedDialogTopics.get(selectedDialogs.get(key));
-                    MessageObject replyTopMsg = topic != null ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
+                    long monoForumPeerId = topic != null && isMonoForum ? DialogObject.getPeerDialogId(topic.from_id) : 0;
+
+                    MessageObject replyTopMsg = topic != null && !isMonoForum ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
                     if (replyTopMsg != null) {
                         replyTopMsg.isTopicMainMessage = true;
                     }
                     int result;
                     if (frameLayout2.getTag() != null && commentTextView.length() > 0) {
-                        SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, null, false);
+                        SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, 0, null, false);
                         params.payStars = price == null ? 0 : price;
+                        params.monoForumPeer = monoForumPeerId;
                         SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
                     }
-                    result = SendMessagesHelper.getInstance(currentAccount).sendMessage(sendingMessageObjects, key, !showSendersName,false, withSound, 0, replyTopMsg, video_timestamp, price == null ? 0 : price);
+                    result = SendMessagesHelper.getInstance(currentAccount).sendMessage(sendingMessageObjects, key, !showSendersName,false, withSound, 0, replyTopMsg, video_timestamp, price == null ? 0 : price, monoForumPeerId, null);
                     if (result != 0) {
                         removeKeys.add(key);
                     }
@@ -2430,46 +2419,54 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 if (storyItem != null) {
                     for (int a = 0; a < selectedDialogs.size(); a++) {
                         long key = selectedDialogs.keyAt(a);
+                        boolean isMonoForum = MessagesController.getInstance(currentAccount).isMonoForum(key);
                         final Long price = prices == null ? (Long) 0L : prices.get(key);
                         if (price != null && price > 0) hadPaid = true;
                         TLRPC.TL_forumTopic topic = selectedDialogTopics.get(selectedDialogs.get(key));
-                        MessageObject replyTopMsg = topic != null ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
+                        long monoForumPeerId = topic != null && isMonoForum ? DialogObject.getPeerDialogId(topic.from_id) : 0;
+                        MessageObject replyTopMsg = topic != null && !isMonoForum ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
 
                         SendMessagesHelper.SendMessageParams params;
                         if (storyItem == null) {
                             if (frameLayout2.getTag() != null && commentTextView.length() > 0) {
-                                params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, null, false);
+                                params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, 0, null, false);
                             } else {
-                                params = SendMessagesHelper.SendMessageParams.of(sendingText[num], key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, null, false);
+                                params = SendMessagesHelper.SendMessageParams.of(sendingText[num], key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, 0, null, false);
                             }
                         } else {
                             if (frameLayout2.getTag() != null && commentTextView.length() > 0 && text[0] != null) {
-                                SendMessagesHelper.getInstance(currentAccount).sendMessage(SendMessagesHelper.SendMessageParams.of(text[0].toString(), key, null, replyTopMsg, null, true, null, null, null, withSound, 0, null, false));
+                                SendMessagesHelper.getInstance(currentAccount).sendMessage(SendMessagesHelper.SendMessageParams.of(text[0].toString(), key, null, replyTopMsg, null, true, null, null, null, withSound, 0, 0, null, false));
                             }
-                            params = SendMessagesHelper.SendMessageParams.of(null, key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, null, false);
+                            params = SendMessagesHelper.SendMessageParams.of(null, key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, 0, null, false);
                             params.sendingStory = storyItem;
                         }
                         params.payStars = price == null ? 0 : price;
+                        params.monoForumPeer = monoForumPeerId;
                         SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
                     }
                 } else if (sendingText[num] != null) {
                     for (int a = 0; a < selectedDialogs.size(); a++) {
                         long key = selectedDialogs.keyAt(a);
+                        boolean isMonoForum = MessagesController.getInstance(currentAccount).isMonoForum(key);
                         final Long price = prices == null ? (Long) 0L : prices.get(key);
                         if (price != null && price > 0) hadPaid = true;
                         TLRPC.TL_forumTopic topic = selectedDialogTopics.get(selectedDialogs.get(key));
-                        MessageObject replyTopMsg = topic != null ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
+                        long monoForumPeerId = topic != null && isMonoForum ? DialogObject.getPeerDialogId(topic.from_id) : 0;
+                        MessageObject replyTopMsg = topic != null && !isMonoForum ? new MessageObject(currentAccount, topic.topicStartMessage, false, false) : null;
 
                         if (frameLayout2.getTag() != null && commentTextView.length() > 0) {
-                            SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, null, false);
+                            SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(text[0] == null ? null : text[0].toString(), key, replyTopMsg, replyTopMsg, null, true, entities, null, null, withSound, 0, 0, null, false);
                             params.payStars = price == null ? 0 : price;
+                            params.monoForumPeer = monoForumPeerId;
                             SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
                         }
-                        SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(sendingText[num], key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, null, false);
+                        SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(sendingText[num], key, replyTopMsg, replyTopMsg, null, true, null, null, null, withSound, 0, 0, null, false);
                         params2.payStars = price == null ? 0 : price;
+                        params2.monoForumPeer = monoForumPeerId;
                         SendMessagesHelper.getInstance(currentAccount).sendMessage(params2);
                     }
                 }
+
                 onSend(selectedDialogs, 1, selectedDialogTopics.get(selectedDialogs.valueAt(0)), !hadPaid);
             }
             if (delegate != null) {
@@ -2915,7 +2912,8 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 ShareDialogCell cell = (ShareDialogCell) holder.itemView;
                 TLRPC.Dialog dialog = getItem(position);
                 if (dialog == null) return;
-                cell.setTopic(selectedDialogTopics.get(dialog), false);
+
+                cell.setTopic(selectedDialogTopics.get(dialog), MessagesController.getInstance(currentAccount).isMonoForum(dialog.id), false);
                 cell.setDialog(dialog.id, selectedDialogs.indexOfKey(dialog.id) >= 0, null);
             }
         }
@@ -2940,10 +2938,10 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
 
         @Override
         public int getItemCount() {
-            return topics == null ? 0 : topics.size() + 1;
+            return topics != null ? (topics.size() + 1) : 0;
         }
 
-        public TLRPC.TL_forumTopic getItem(int position) {
+        public TLRPC.TL_forumTopic getItemTopic(int position) {
             position--;
             if (topics == null || position < 0 || position >= topics.size()) {
                 return null;
@@ -2979,8 +2977,10 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             if (holder.getItemViewType() == 0) {
                 ShareTopicCell cell = (ShareTopicCell) holder.itemView;
-                TLRPC.TL_forumTopic topic = getItem(position);
-                cell.setTopic(selectedTopicDialog, topic, selectedDialogs.indexOfKey(topic.id) >= 0, null);
+                if (topics != null) {
+                    TLRPC.TL_forumTopic topic = getItemTopic(position);
+                    cell.setTopic(selectedTopicDialog, topic, topic != null && selectedDialogs.indexOfKey(topic.id) >= 0, null);
+                }
             }
         }
 
@@ -3768,5 +3768,44 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         }
         frameLayout2.setTranslationY(-bottomMargin);
         writeButtonContainer.setTranslationY(-bottomMargin);
+    }
+
+    private void onTopicCellClick(TLRPC.TL_forumTopic topic) {
+        if (topic == null || selectedTopicDialog == null) {
+            return;
+        }
+
+        long dialogId = selectedTopicDialog.id;
+        final boolean mono = MessagesController.getInstance(currentAccount).isMonoForum(dialogId);
+        TLRPC.Dialog dialog = selectedTopicDialog;
+
+        selectedDialogs.put(dialogId, dialog);
+        selectedDialogTopics.put(dialog, topic);
+        updateSelectedCount(2);
+
+        if (searchIsVisible || searchWasVisibleBeforeTopics) {
+            TLRPC.Dialog existingDialog = listAdapter.dialogsMap.get(dialog.id);
+            if (existingDialog == null) {
+                listAdapter.dialogsMap.put(dialog.id, dialog);
+                listAdapter.dialogs.add(listAdapter.dialogs.isEmpty() ? 0 : 1, dialog);
+            }
+            listAdapter.notifyDataSetChanged();
+            updateSearchAdapter = false;
+            searchView.searchEditText.setText("");
+            checkCurrentList(false);
+        }
+        for (int i = 0; i < getMainGridView().getChildCount(); i++) {
+            View child = getMainGridView().getChildAt(i);
+
+            if (child instanceof ShareDialogCell && ((ShareDialogCell) child).getCurrentDialog() == selectedTopicDialog.id) {
+                ShareDialogCell cell = (ShareDialogCell) child;
+
+                if (cell != null) {
+                    cell.setTopic(topic, mono, true);
+                    cell.setChecked(true, true);
+                }
+            }
+        }
+        collapseTopics();
     }
 }

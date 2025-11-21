@@ -5,12 +5,8 @@ import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.LongSparseArray;
-import android.util.SparseIntArray;
-import android.util.SparseLongArray;
 import android.view.View;
-import android.widget.FrameLayout;
 
-import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.TLObject;
@@ -25,7 +21,6 @@ import org.telegram.ui.ChannelMonetizationLayout;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.StatisticActivity;
 
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
@@ -43,11 +38,13 @@ public class UItem extends AdapterWithDiffUtils.Item {
     public int pad;
     public boolean hideDivider;
     public int iconResId;
+    public Drawable drawable;
     public CharSequence text, subtext, textValue;
     public CharSequence animatedText;
     public String[] texts;
     public boolean accent, red, transparent, locked;
     public int spanCount = MAX_SPAN_COUNT;
+    public int parentSpanCount;
 
     public boolean include;
     public long dialogId;
@@ -141,6 +138,14 @@ public class UItem extends AdapterWithDiffUtils.Item {
         UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TOPVIEW, false);
         i.text = text;
         i.iconResId = lottieResId;
+        return i;
+    }
+
+    public static UItem asTopViewStatic(CharSequence text, int iconResId) {
+        UItem i = new UItem(UniversalAdapter.VIEW_TYPE_TOPVIEW, false);
+        i.text = text;
+        i.accent = true;
+        i.iconResId = iconResId;
         return i;
     }
 
@@ -616,6 +621,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
             red == item.red &&
             locked == item.locked &&
             accent == item.accent &&
+            view == item.view &&
             TextUtils.equals(text, item.text) &&
             TextUtils.equals(subtext, item.subtext) &&
             TextUtils.equals(textValue, item.textValue) &&
@@ -623,6 +629,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
             intValue == item.intValue &&
             Math.abs(floatValue - item.floatValue) < 0.01f &&
             longValue == item.longValue &&
+            drawable == item.drawable &&
             Objects.equals(object, item.object) &&
             Objects.equals(object2, item.object2)
         );
@@ -676,7 +683,7 @@ public class UItem extends AdapterWithDiffUtils.Item {
             return null;
         }
 
-        public void bindView(View view, UItem item, boolean divider) {
+        public void bindView(View view, UItem item, boolean divider, UniversalAdapter adapter, UniversalRecyclerView listView) {
 
         }
 

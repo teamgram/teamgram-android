@@ -7,7 +7,6 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -22,7 +21,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.Emoji;
 import org.telegram.messenger.R;
 import org.telegram.messenger.Utilities;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -64,6 +62,8 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
     protected int headerHeight = 0;
     protected int headerPaddingTop = 0;
     protected int headerPaddingBottom = 0;
+    protected int headerMoveTop = 0;
+    protected boolean ignoreTouchActionBar = true;
     protected boolean actionBarIgnoreTouchEvents = false;
     protected AnimatedFloat actionBarSlideProgress;
 
@@ -333,7 +333,27 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
                 return BottomSheetWithRecyclerListView.this.canHighlightChildAt(child, x, y);
             }
         };
-        layoutManager = new LinearLayoutManager(context);
+        layoutManager = new LinearLayoutManager(context) {
+            @Override
+            public void scrollToPositionWithOffset(int position, int offset) {
+                super.scrollToPositionWithOffset(position, offset);
+            }
+
+            @Override
+            public void scrollToPosition(int position) {
+                super.scrollToPosition(position);
+            }
+
+            @Override
+            public void scrollToPositionWithOffset(int position, int offset, boolean bottom) {
+                super.scrollToPositionWithOffset(position, offset, bottom);
+            }
+
+            @Override
+            public void smoothScrollToPosition(RecyclerView recyclerView, RecyclerView.State state, int position) {
+                super.smoothScrollToPosition(recyclerView, state, position);
+            }
+        };
         if (stackFromEnd) {
             layoutManager.setStackFromEnd(true);
         }
@@ -368,7 +388,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
 
                 @Override
                 public boolean dispatchTouchEvent(MotionEvent ev) {
-                    if (actionBarIgnoreTouchEvents) {
+                    if (ignoreTouchActionBar && actionBarIgnoreTouchEvents) {
                         return false;
                     }
                     return super.dispatchTouchEvent(ev);
@@ -425,6 +445,34 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
 
     public boolean reverseLayout;
 
+    private class PaddingView extends View {
+
+        public PaddingView(Context context) {
+            super(context);
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int h;
+            if (contentHeight == 0) {
+                h = dp(300);
+            } else {
+                h = (int) (contentHeight * topPadding);
+            }
+            h -= headerTotalHeight - headerHeight - headerPaddingTop - headerPaddingBottom;
+            if (h < 1) {
+                h = 1;
+            }
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY));
+        }
+
+        @Override
+        public void setTranslationY(float translationY) {
+            super.setTranslationY(translationY);
+            containerView.invalidate();
+        }
+    }
+
     protected void resetAdapter(Context context) {
         RecyclerListView.SelectionAdapter adapter = createAdapter(recyclerListView);
         RecyclerListView.SelectionAdapter wrapperAdapter = new RecyclerListView.SelectionAdapter() {
@@ -438,29 +486,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
             @Override
             public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
                 if (viewType == -1000) {
-                    View view = new View(context) {
-                        @Override
-                        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-                            int h;
-                            if (contentHeight == 0) {
-                                h = dp(300);
-                            } else {
-                                h = (int) (contentHeight * topPadding);
-                            }
-                            h -= headerTotalHeight - headerHeight - headerPaddingTop - headerPaddingBottom;
-                            if (h < 1) {
-                                h = 1;
-                            }
-                            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY));
-                        }
-
-                        @Override
-                        public void setTranslationY(float translationY) {
-                            super.setTranslationY(translationY);
-                            containerView.invalidate();
-                        }
-                    };
-                    return new RecyclerListView.Holder(view);
+                    return new RecyclerListView.Holder(new PaddingView(context));
                 }
                 return adapter.onCreateViewHolder(parent, viewType);
             }
@@ -559,6 +585,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
         return dp(56);
     }
 
+    protected boolean centerTitle;
     private boolean restore;
     protected void preDrawInternal(Canvas canvas, View parent) {
         restore = false;
@@ -585,6 +612,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
                 }
             }
             top -= headerHeight + headerPaddingTop + headerPaddingBottom;
+            top += headerMoveTop;
             if (showHandle && handleOffset) {
                 top -= dp(actionBarType == ActionBarType.SLIDING ? 8 : 16);
             }
@@ -598,7 +626,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
                 }
                 AndroidUtilities.updateViewVisibilityAnimated(actionBar, progressToFullView != 0f, 1f, wasDrawn);
             } else if (actionBarType == ActionBarType.SLIDING) {
-                float actionBarY = Math.max(top + dp(8) + headerPaddingTop - AndroidUtilities.statusBarHeight, 0.0f);
+                float actionBarY = Math.max(top - headerMoveTop + dp(8) + headerPaddingTop - AndroidUtilities.statusBarHeight, 0.0f);
                 float t = actionBarSlideProgress.set(actionBarY == 0.0f ? 1.0f : 0.0f);
 
                 if (t != 0 && t != 1) {
@@ -615,6 +643,9 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
                 actionBar.backButtonImageView.setScaleY(t);
                 SimpleTextView titleTextView = actionBar.getTitleTextView();
                 titleTextView.setTranslationX(AndroidUtilities.lerp(dp(21) - titleTextView.getLeft(), 0.0f, t));
+                if (centerTitle) {
+                    titleTextView.setTranslationX((actionBar.getMeasuredWidth() - titleTextView.getTextWidth()) / 2f - titleTextView.getLeft());
+                }
                 actionBar.setTranslationY(actionBarY);
                 top -= AndroidUtilities.lerp(0, headerTotalHeight - headerHeight - headerPaddingTop - headerPaddingBottom + dp(13), t);
                 actionBar.getBackground().setBounds(0, AndroidUtilities.lerp(actionBar.getHeight(), 0, t), actionBar.getWidth(), actionBar.getHeight());
@@ -712,7 +743,7 @@ public abstract class BottomSheetWithRecyclerListView extends BottomSheet {
 
     private void updateStatusBar() {
         if (attachedFragment != null) {
-            LaunchActivity.instance.checkSystemBarColors(true, true, true, false);
+            LaunchActivity.instance.checkSystemBarColors(true, true, true);
         } else if (actionBar != null && actionBar.getTag() != null) {
             AndroidUtilities.setLightStatusBar(getWindow(), isLightStatusBar());
         } else if (baseFragment != null) {
